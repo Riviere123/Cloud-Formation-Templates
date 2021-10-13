@@ -1,0 +1,169 @@
+Parameters:
+  KeyPair:
+    Description: The keypair for the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: TD-Keypair
+
+  VPCName:
+    Description: Tag name for the VPC
+    Type: String
+    Default: Stack-VPC
+  
+  SSHip:
+    Description: Your public IP for SSH access
+    Type: String
+    Default: 0.0.0.0/0
+
+  ImageID:
+    Description: The Image ID for the instances Default is AWSLinux2 for N.Virginia
+    Type: AWS::EC2::Image::Id
+    Default: ami-02e136e904f3da870
+
+  PublicInstanceType:
+    Description: The Type of instance to launch for the public subnet
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+
+  PrivateInstanceType:
+    Description: The Type of instance to launch for the private subnet
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m1.small
+      - m1.large
+  
+  PublicInstanceVolumeSize:
+    Description: The size of the public instance VolumeSize
+    Type: Number
+    MaxValue: 20
+    MinValue: 8
+    Default: 8
+
+  PrivateInstanceVolumeSize:
+    Description: The size of the private instance VolumeSize
+    Type: Number
+    MaxValue: 20
+    MinValue: 8
+    Default: 8
+
+Resources:
+  #VPC and Subnets
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      Tags:
+      - Key: "Name"
+        Value: !Ref VPCName
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.2.0/24
+      VpcId: !Ref VPC
+
+#IGW and IGW Attach
+  IGW:
+    Type: AWS::EC2::InternetGateway
+
+  IGWAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW
+      VpcId: !Ref VPC
+
+#RouteTable and Routes
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  InternetRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+      RouteTableId: !Ref RouteTable
+
+  PublicRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref PublicSubnet
+  
+
+#Security Groups
+
+  PublicSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host and SSH to IP Provided
+        VpcId:
+          Ref: VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: !Ref SSHip
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+
+  PrivateSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH only for IP provided
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHip
+
+#Public and Private instance
+
+  PublicEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ImageID
+      KeyName: !Ref KeyPair
+      InstanceType: !Ref PublicInstanceType
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds: 
+        - !Ref PublicSecurityGroup
+      BlockDeviceMappings: 
+        - DeviceName: "/dev/sdm"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref PublicInstanceVolumeSize
+    
+  PrivateEC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref ImageID
+      KeyName: !Ref KeyPair
+      InstanceType: !Ref PrivateInstanceType
+      SubnetId: !Ref PrivateSubnet
+      SecurityGroupIds: 
+        - !Ref PrivateSecurityGroup
+      BlockDeviceMappings: 
+        - DeviceName: "/dev/sdm"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: "true"
+            VolumeSize: !Ref PrivateInstanceVolumeSize
