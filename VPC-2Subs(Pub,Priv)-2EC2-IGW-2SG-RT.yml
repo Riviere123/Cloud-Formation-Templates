@@ -85,7 +85,7 @@ Resources:
       VpcId: !Ref VPC
 
 #RouteTable and Routes
-  RouteTable:
+  PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
@@ -95,13 +95,24 @@ Resources:
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref IGW
-      RouteTableId: !Ref RouteTable
+      RouteTableId: !Ref PublicRouteTable
 
   PublicRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref RouteTable
+      RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  
+  PrivateRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
   
 
 #Security Groups
@@ -132,7 +143,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: !Ref SSHip
+          SourceSecurityGroupId: !Ref PublicSecurityGroup
 
 #Public and Private instance
 
